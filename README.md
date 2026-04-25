@@ -13,25 +13,14 @@ Versions used:
 with [opencl-amd](https://aur.archlinux.org/packages/opencl-amd) packages (7.2.0-1).
 
 > [!CAUTION]
-> I kinda understand what's going on here, but not fully. It took me most of the day to figure out how to run
-> ComfyUI on my Framework Desktop without it crashing (which is absurd for a CPU with _AI_ in the name), and
-> the final working solution turned out to be much simpler than what I was able to find initially.
->
-> That being said, it works (as of Feb 25, 2026), but I'm not sure if there's an even better / more correct way of
-> achieving the same thing. Same goes for the environment variables that are supposedly making ComfyUI
-> faster / resource efficient.
->
-> I just want to share this solution to save someone else a couple of hours ¯\_(ツ)_/¯
+> This is an _opinionated_ implementation of ignatberesnev's comfyui-gfx1151 build. There are key differences:
+> * We don't use the docker image registry. I'm a docker-compose girlie, and the local build is just fine for my purposes.
+> * We have a whole bunch of plugins. Don't like them? Take them out of your dockerfile, or add your own. DO NOT install plugins vis comfyui-manager, you will lose them on container restart. 
+> * We keep most of the comfyui code in the ephemeral container storage, and only expose the volumes I use.
 
 ## Get started now
 
-The Docker image is published to [Docker Hub](https://hub.docker.com/r/ignatberesnev/comfyui-gfx1151), 
-so you can, but don't have to build it yourself.
-
-There are two options:
-
-* Copy [docker-compose.yml](docker-compose.yml) and run `docker compose up -d`
-* Copy [docker-run.sh](docker-run.sh) and run `./docker-run.sh`. After the first run, use `docker start comfyui-gfx1151`.
+Clone this repo, and run `docker compose up -d`
 
 ComfyUI will be available at http://localhost:8188.
 
@@ -57,15 +46,10 @@ There are a couple of scripts that can check that both PyTorch and flash-attenti
 
 #### Updating ComfyUI / dependencies
 
-If you need to install custom nodes or refresh ComfyUI dependencies after a manual update,
-you can do it from within the container (until #4 is resolved):
+Update `COMFYUI_REF: v0.15.0` to the version number you're targeting. Then:
 
-```bash
-docker exec -it comfyui-gfx1151 /bin/bash
-
-cd /opt/ComfyUI
-
-pip install -r requirements.txt
+```
+docker compose build --no-cache comfyui && docker compose up -d comfyui
 ```
 
 ## What's inside / how to replicate
@@ -102,95 +86,3 @@ With that knowledge, you should be able to take [Dockerfile](Dockerfile) and bui
 
 If any of this makes more sense to you than it does to me and you know how to improve something or can add a helpful 
 comment with additional context, please do!
-
-## What I tried that didn't work
-
-The majority of other solutions seem to rely on custom-built wheels, such as the image by 
-[pccr10001/comfyui-gfx1151-fa](https://github.com/pccr10001/comfyui-gfx1151-fa).
-
-I never managed to make these custom wheels work, presumably because of non-locked dependencies (pulling in newer 
-version of rocm/etc with old wheels). However, they made me begin to understand what was happening and how to move 
-forward, so huge thanks to everyone who left any comments on the topic.
-
-Some other solutions also relied on the image `ghcr.io/rocm/therock_pytorch_dev_ubuntu_24_04_gfx1151`, which is no 
-longer published, so I never got that working either. The image I'm referencing 
-([rocm/pytorch](https://hub.docker.com/r/rocm/pytorch)) seems like a replacement for it though?
-
-Initially, I [copied over](https://github.com/pccr10001/comfyui-gfx1151-fa/blob/e6e59be08ff439ab5f9799aa2161f70709fcd975/README.md?plain=1#L33)
-some environment variables that were supposed to speed up ComfyUI / PyTorch and make it more resource efficient:
-`PYTORCH_TUNABLEOP_ENABLED`, `MIOPEN_FIND_MODE` and `ROCBLAS_USE_HIPBLASLT` (not adding them as a codeblock to avoid
-someone copy-pasting them). However, at least one of them not only made it worse when it comes to the speed, but I
-believe it would crash my display server (X11) every now and then when running stable diffusion models. Apparently,
-this is relatively common to see with AMD drivers in general, so I'm not entirely sure that those env variables were
-100% responsible for the crashes (might've been something else), but removing all of them helped (at least for now),
-so I've removed them from this repo's scripts too. If you also experience display server crashes, let me know.
-
-## Tests
-
-There are two scripts that you can use to test if everything works correctly
-
-#### Test PyTorch
-
-While the container is running, running
-
-```bash
-docker exec -it comfyui-gfx1151 /bin/bash /opt/comfyui-gfx1151-utils/test-pytorch.sh
-```
-
-should produce NO errors. The output should be something like:
-
-```text
-GPU: AMD Radeon Graphics | FlashAttn: True
-Mean: -0.026233481243252754
-```
-
-#### Test flash-attention
-
-While the container is working, running
-
-```bash
-docker exec -it comfyui-gfx1151 python3 /opt/comfyui-gfx1151-utils/test-pytorch-flashattention.py
-```
-
-should produce NO errors. The output should be something like:
-
-```text
-=== PyTorch Installation Check ===
-PyTorch version: 2.9.1+rocm7.1.1.git351ff442
-PyTorch ROCm version: 7.1.52802-26aae437f6
-CUDA available: True
-Device count: 1
-Device name: AMD Radeon Graphics
-
-=== Flash Attention Support Check ===
-/usr/lib/python3.12/contextlib.py:105: FutureWarning: `torch.backends.cuda.sdp_kernel()` is deprecated. In the future, this context manager will be removed. Please see `torch.nn.attention.sdpa_kernel()` for the new context manager, with updated signature.
-  self.gen = func(*args, **kwds)
-Available SDP backends: <contextlib._GeneratorContextManager object at 0x7f9f4568c1d0>
-Flash Attention backend enabled
-Test tensors created on cuda
-Flash Attention test successful! Output shape: torch.Size([2, 8, 128, 64])
-
-=== AOTriton Check ===
-AOTriton not available: No module named 'pyaotriton'
-
-=== Environment Variables ===
-ROCM_PATH: Not set
-HIP_PATH: Not set
-HIP_PLATFORM: Not set
-HIP_ARCH: Not set
-HSA_OVERRIDE_GFX_VERSION: Not set
-
-=== Testing GFX Version Override ===
-Set HSA_OVERRIDE_GFX_VERSION=11.0.0 to test gfx110x mapping
-✓ Flash Attention worked with GFX override!
-
-=== Flash Attention Backend Detection ===
-✓ flash backend works
-✓ mem_efficient backend works
-✓ math backend works
-```
-
-## Acknowledgements
-
-Big thanks to [pccr10001](https://github.com/pccr10001), [lhl](https://github.com/lhl) and [kyuz0](https://github.com/kyuz0) for setting me on the right path!
-
