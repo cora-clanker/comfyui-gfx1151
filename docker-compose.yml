@@ -15,7 +15,7 @@ services:
       - ./ComfyUI/models:/opt/ComfyUI/models
       - ./ComfyUI/input:/opt/ComfyUI/input
       - ./ComfyUI/output:/opt/ComfyUI/output
-      - ./ComfyUI/user/default/workflows:/opt/ComfyUI/user/default/workflows
+      - ./ComfyUI/user:/opt/ComfyUI/user
     environment:
       - TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1
       - HSA_OVERRIDE_GFX_VERSION=11.5.1
