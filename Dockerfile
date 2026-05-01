@@ -13,13 +13,36 @@ RUN cd /opt && \
     git checkout main_perf && \
     python setup.py install
 
+# ── Custom ComfyUI frontend ───────────────────────────────────────────────────
+# Build cora-clanker/ComfyUI_frontend into a comfyui-frontend-package wheel.
+# Installed after ComfyUI requirements so it overrides the pinned upstream one.
+ARG COMFYUI_FRONTEND_REF=main
+ARG NODE_MAJOR=24
+RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    rm -rf /var/lib/apt/lists/* && \
+    npm install -g pnpm@10 && \
+    pip install build
+
+RUN git clone https://github.com/cora-clanker/ComfyUI_frontend /opt/ComfyUI_frontend && \
+    cd /opt/ComfyUI_frontend && \
+    git checkout ${COMFYUI_FRONTEND_REF} && \
+    pnpm install --frozen-lockfile && \
+    NODE_OPTIONS='--max-old-space-size=8192' pnpm build && \
+    mkdir -p comfyui_frontend_package/comfyui_frontend_package/static && \
+    cp -r dist/* comfyui_frontend_package/comfyui_frontend_package/static/ && \
+    cd comfyui_frontend_package && \
+    COMFYUI_FRONTEND_VERSION="$(node -p "require('/opt/ComfyUI_frontend/package.json').version")" \
+        python -m build --wheel
+
 # ── ComfyUI ───────────────────────────────────────────────────────────────────
 # Pin to a specific ref. Pass --build-arg COMFYUI_REF=<tag-or-sha> to override.
 ARG COMFYUI_REF=v0.15.0
 RUN git clone https://github.com/comfyanonymous/ComfyUI /opt/ComfyUI && \
     cd /opt/ComfyUI && \
     git checkout ${COMFYUI_REF} && \
-    pip install -r requirements.txt
+    pip install -r requirements.txt && \
+    pip install --no-deps --force-reinstall /opt/ComfyUI_frontend/comfyui_frontend_package/dist/*.whl
 
 WORKDIR /opt/ComfyUI/custom_nodes
 
@@ -71,4 +94,4 @@ WORKDIR /opt/ComfyUI
 
 EXPOSE 8188
 
-CMD ["python3", "/opt/ComfyUI/main.py", "--listen", "0.0.0.0", "--use-flash-attention", "--gpu-only"]
+CMD ["python3", "/opt/ComfyUI/main.py", "--listen", "0.0.0.0", "--use-flash-attention", "--normalvram", "--disable-api-nodes"]

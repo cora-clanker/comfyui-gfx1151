@@ -9,12 +9,11 @@ Versions used:
 * Python: 3.12
 * ComfyUI (built-in): v0.15.0
 
-**Last updated & tested**: Feb 25, 2026, on 6.18.9 (ArchLinux), AMD RYZEN AI MAX+ 395 (Framework Desktop), 
-with [opencl-amd](https://aur.archlinux.org/packages/opencl-amd) packages (7.2.0-1).
-
 > [!CAUTION]
 > This is an _opinionated_ implementation of ignatberesnev's comfyui-gfx1151 build. There are key differences:
 > * We don't use the docker image registry. I'm a docker-compose girlie, and the local build is just fine for my purposes.
+> * API nodes are disabled.  Local only, baby.
+> * we use a custom comfyui_frontend with no sentry metrics or telemetrics. Allegedly the telemetrics might only be for cloud, but IDK, no phoning home here! As a result, the dockerfile build will take 8GB of RAM, but if you don't have that, IDK why you're running ComfyUI.
 > * We have a whole bunch of plugins. Don't like them? Take them out of your dockerfile, or add your own. DO NOT install plugins vis comfyui-manager, you will lose them on container restart. 
 > * We keep most of the comfyui code in the ephemeral container storage, and only expose the volumes I use.
 
